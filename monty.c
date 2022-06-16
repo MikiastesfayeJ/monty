@@ -1,53 +1,96 @@
 #include "monty.h"
-#define BUFSIZE 64
 
-char *operand;
+static stack_t *Values;
+static char **Lines;
+static int Lines_Count;
+static int Current_Line;
+static char Data_Format;
 
 /**
- * main - monty interpreter
- * @argc: int
- * @argv: list of arguments
- * Return: nothing
+ * main - A Monty ByteCode interpreter
+ * @argc: The number of arguments passed to the program
+ * @argv: The arguments passed to the program
+ *
+ * Return: 0 if successful, otherwise 1
  */
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
-	line_t *lines;
-	char **line;
-	int line_number;
-	stack_t *stack;
-	char *content;
-	void (*func)(stack_t**, unsigned int);
-
-	stack = NULL;
-	if (argc == 1)
+	if (argc == 2)
 	{
-		fprintf(stderr, "USAGE: monty file\n");
+		Data_Format = DF_LIFO;
+		Lines = read_file(argv[1], &Lines_Count);
+		while (Current_Line < Lines_Count)
+		{
+			execute_line(Lines[Current_Line], Current_Line + 1, &Values);
+			Current_Line++;
+		}
+	}
+	else
+	{
+		write(STDERR_FILENO, "USAGE: monty file\n", 18);
 		exit(EXIT_FAILURE);
 	}
-	lines = textfile_to_array(argv[1]);
-	if (lines == NULL)
-		return (0);
-	line_number = 0;
-	while ((lines + line_number)->content != NULL)
+	clean_up_program();
+	return (EXIT_SUCCESS);
+}
+
+/**
+ * get_data_mode - Returns a pointer to the interpreter's mode flag
+ *
+ * Return: A pointer to the interpreter's mode flag
+ */
+char *get_data_mode(void)
+{
+	return (&Data_Format);
+}
+
+/**
+ * get_lines - Retrieves the lines of the current file
+ *
+ * Return: The lines of the current file
+ */
+char **get_lines(void)
+{
+	return (Lines);
+}
+
+/**
+ * clean_up_program - Frees dynamically allocated memory blocks
+ */
+void clean_up_program(void)
+{
+	stack_t *node = Values, *tmp = NULL;
+	int i;
+
+	if (Lines != NULL)
 	{
-		content = (lines + line_number)->content;
-		line = split_line(content);
-		operand = line[1];
-		func = get_op_func(line[0]);
-		if (func == NULL)
+		for (i = 0; i < Lines_Count; i++)
 		{
-			/*TODO: Refactor: Edit more efifcient way to free memory on exit*/
-			fprintf(stderr, "L%d: unknown instruction %s\n", line_number + 1, line[0]);
-			free(line);
-			free_stack(stack);
-			free_lines(lines);
-			exit(EXIT_FAILURE);
+			if (Lines[i] != NULL)
+				free(Lines[i]);
 		}
-		func(&stack, line_number + 1);
-		free(line);
-		line_number++;
+		if (Lines != NULL)
+			free(Lines);
 	}
-	free_stack(stack);
-	free_lines(lines);
-	return (0);
+	if (node != NULL)
+	{
+		while ((node != NULL) && (node->prev != NULL))
+			node = node->prev;
+		while (node != NULL)
+		{
+			tmp = node->next;
+			free(node);
+			node = tmp;
+		}
+	}
+}
+
+/**
+ * exit_program - Safely exits the program with the given status code
+ * @status: The status code to exit with
+ */
+void exit_program(int status)
+{
+	clean_up_program();
+	exit(status);
 }
